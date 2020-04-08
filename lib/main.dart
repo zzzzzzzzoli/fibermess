@@ -3,97 +3,153 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import 'cell.dart';
+import 'widgets.dart';
+import 'levels.dart';
 
-void main() => runApp(MyApp());
+void main() => runApp(Fibermess());
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
+class Fibermess extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Fibermess',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: MyHomePage(init_cells: generateMaze()),
+      home: MyHomePage(),
     );
   }
 }
 
-List<List<Cell>> recolorMaze(List<List<Cell>> maze, bool wrap) {
-  return MazeColorMixer(6, 8, true).recolorMaze(maze);
-}
-
-generateMaze() {
-  return MazeGenerator(width: 6, height: 8, sources: 4, links: 2, wrap: true).getMaze();
-}
-
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.init_cells}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final List<List<Cell>> init_cells;
-  double widgetSize;
+  MyHomePage({Key key}) : super(key: key);
 
   @override
-  _MyHomePageState createState() => _MyHomePageState(init_cells);
+  _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  List<List<Cell>> cells;
+
   double widgetSize;
-  _MyHomePageState(this.cells);
+  MazeWidget mazeWidget;
+  _MyHomePageState();
 
-  void _turnCell(Cell cell) {
-    setState(() {
-      cell.turn();
-      cells = recolorMaze(cells, true);
-    });
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black,
+      child: SafeArea(child: new LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            return MazeWidget(constraints.maxWidth, constraints.maxHeight);
+          }),),);
   }
+}
 
-  void _newMaze() {
+class MazeWidget extends StatefulWidget {
+
+  final double screenWidth;
+  final double screenHeight;
+  final int level;
+
+  MazeWidget(this.screenWidth, this.screenHeight, {this.level = 0});
+
+  @override
+  State<StatefulWidget> createState() => _MazeState();
+
+}
+
+class _MazeState extends State<MazeWidget> {
+
+  List<Cell> maze;
+  MazeColorMixer colorMixer;
+  int level;
+  int width;
+  int height;
+  double widgetSize;
+
+  void _nextMaze() {
     setState(() {
-      cells = generateMaze();
+      level++;
+      _getMaze();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    double widgetSize = MediaQuery.of(context).size.width/6;
-    return Container(
-      color: Colors.black,
-      child: SafeArea(child: Column(
-        children: <Widget>[
-          getMaze(cells, widgetSize),
-          RaisedButton(
-            child: Text('NEW MAZE'),
-            onPressed: _newMaze,
-          )
-        ],
-      )),
-    );
-  }
-
-  Widget getMaze(List<List<Cell>> cells, double widgetSize) {
     var rowWidgets = <Widget>[];
-    for (List<Cell> row in cells) {
+    for (int i = 0; i < maze.length; i += width) {
       var cellWidgets = <Widget>[];
-      for (Cell cell in row) {
+      for (Cell cell in maze.sublist(i, i + width)) {
         cellWidgets.add(GestureDetector(
-          child: CellWidget(cell: cell, size: widgetSize),
+          child: CellWidget(
+              cell: cell,
+              size: widgetSize),
           onTap: () => _turnCell(cell),
         ));
       }
       rowWidgets.add(Row(children: cellWidgets));
     }
-    return Container(child: Column(children: rowWidgets), color: Colors.black,);
+    var mazeWidget = Container(
+      child: Column(children: rowWidgets), color: Colors.black,);
+    if (colorMixer.complete) {
+      return Stack(
+        alignment: AlignmentDirectional.center,
+        children: <Widget>[
+          mazeWidget,
+          BlurWidget(),
+          Container(
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text('Congrats',
+                    style: TextStyle(color: Colors.red, backgroundColor: Colors.lightGreenAccent, decoration: TextDecoration.none),
+                  ),
+                ),
+                RaisedButton(
+                  child: Text('Next level'),
+                  onPressed: _nextMaze,
+                )
+              ],),
+          )
+        ],);
+    }
+    return mazeWidget;
+  }
+
+  @override
+  void initState() {
+    level = widget.level;
+    _getMaze();
+    super.initState();
+  }
+
+  Level _getLevelForScreen(int l) {
+    if (widget.screenWidth <= widget.screenHeight) {
+      widgetSize = widget.screenWidth / levels[l].width;
+      width = levels[l].width;
+      height = (width * widget.screenHeight / widget.screenWidth).floor();
+      var lvl = Level(width, levels[l].sources, levels[l].links, levels[l].wrap, height: height);
+      return lvl;
+    } else {
+      widgetSize = widget.screenHeight / levels[l].width;
+      height = levels[l].width;
+      width = (height * widget.screenWidth / widget.screenHeight).floor();
+      var lvl = Level(width, levels[l].sources, levels[l].links, levels[l].wrap, height: height);
+      return lvl;
+    }
+  }
+
+  void _getMaze() {
+    Level lvl = _getLevelForScreen(level);
+    maze = MazeGenerator(lvl).getMaze();
+    colorMixer = MazeColorMixer(lvl);
+    maze = colorMixer.colorMaze(maze);
+  }
+
+  void _turnCell(Cell cell) {
+    setState(() {
+      cell.turn();
+      maze = colorMixer.colorMaze(maze);
+    });
   }
 }
