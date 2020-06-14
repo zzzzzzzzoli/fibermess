@@ -1,6 +1,8 @@
 # fibermess
 
-A [Colourshift](https://www.kongregate.com/games/mrsneeze/colourshift) tribute
+A [Colourshift](https://www.kongregate.com/games/mrsneeze/colourshift) tribute.
+
+[Try it in your browser!](https://zzzzzzzzoli.github.io/fibermess/)
 
 ## Contributions welcome!
 
