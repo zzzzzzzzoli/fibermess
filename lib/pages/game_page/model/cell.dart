@@ -1,20 +1,22 @@
-class Cell {
+import 'package:equatable/equatable.dart';
+
+class Cell extends Equatable {
 
   CellType type;
 
-  Set<Side> connections;
-  Set<Side> bridgeConnections;
+  Set<Side> connections = {};
+  Set<Side> bridgeConnections = {};
 
-  Set<CellColor> color;
-  Set<CellColor> bridgeColor;
+  Set<CellColor> color = {};
+  Set<CellColor> bridgeColor = {};
 
   Set<CellColor> originalColor;
 
   Map<Side, Set<CellColor>> sourceSideColors = {
-    Side.up : {CellColor.gray},
-    Side.down : {CellColor.gray},
-    Side.left : {CellColor.gray},
-    Side.right : {CellColor.gray},
+    Side.up : {},
+    Side.down : {},
+    Side.left : {},
+    Side.right : {},
   };
 
   Cell({this.type, this.connections, this.bridgeConnections, this.color,
@@ -23,13 +25,17 @@ class Cell {
   Cell.source(Set<CellColor> originalColor) {
     this.type = CellType.source;
     this.connections = {};
-    this.sourceSideColors = {};
+    this.sourceSideColors = {
+      Side.up : Set.of(originalColor),
+      Side.down : Set.of(originalColor),
+      Side.left : Set.of(originalColor),
+      Side.right : Set.of(originalColor)
+    };
     this.originalColor = originalColor;
   }
 
   Cell.through() {
     this.type = CellType.through;
-    this.connections = {};
   }
 
   bool get isOn {
@@ -56,30 +62,29 @@ class Cell {
     }
   }
 
+  @override
+  List<Object> get props => [this.type, this.connections, this.bridgeConnections, this.color,
+    this.bridgeColor, this.originalColor, this.sourceSideColors];
+
 }
 
 
-// ignore: missing_return
 CellColor mixColors(Set<CellColor> baseColors) {
-  baseColors = baseColors.difference({CellColor.gray});
   switch (baseColors.length) {
-    case 0:
-      return CellColor.gray;
     case 1:
       return baseColors.first;
     case 2:
       if (baseColors.contains(CellColor.blue)) {
         if (baseColors.contains(CellColor.red)) {
           return CellColor.magenta; // blue + red
-        } else {
-          return CellColor.cyan; // blue + green
         }
-      } else {
-        return CellColor.yellow; // red + green
+        return CellColor.cyan; // blue + green
       }
-      break;
+      return CellColor.yellow; // red + green
     case 3:
       return CellColor.white; // red + green + blue
+    default:
+      return null;
   }
 }
 
@@ -126,8 +131,7 @@ enum CellColor {
   cyan,
   yellow,
   magenta,
-  white,
-  gray
+  white
 }
 
 enum CellType {

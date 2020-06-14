@@ -1,18 +1,45 @@
 import 'dart:math';
 import 'dart:ui';
+import 'package:collection/collection.dart';
+import 'package:fibermess/pages/game_page/bloc/bloc.dart';
+import 'package:fibermess/pages/game_page/bloc/states.dart';
+import 'package:fibermess/pages/game_page/model/cell.dart';
 
-import 'package:fibermess/cell.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class CellWidget extends StatelessWidget {
 
-  final Cell cell;
   final double size;
+  final int cellIndex;
 
-  const CellWidget({Key key, this.cell, this.size}) : super(key: key);
+  const CellWidget({Key key, @required this.size, @required this.cellIndex}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    return BlocBuilder<GameBloc, GameState>(
+      condition: (GameState oldState, GameState newState) {
+        if (newState is CellNeedsRepaintingState) return newState.cellIndex == cellIndex;
+        Cell oldCell, newCell;
+        if (newState is LoadedState) newCell = newState.maze[cellIndex];
+        if (oldState is LoadedState) oldCell = oldState.maze[cellIndex];
+        if (oldState is CellNeedsRepaintingState) oldCell = oldState.cell;
+        if (newState is GameWonState) newCell = newState.maze[cellIndex];
+        if (oldState is GameWonState) oldCell = oldState.maze[cellIndex];
+        return oldCell != newCell;
+      },
+      builder: (_, gameState) {
+        Cell cell;
+        if (gameState is LoadedState) cell = gameState.maze[cellIndex];
+        if (gameState is GameWonState) cell = gameState.maze[cellIndex];
+        if (gameState is CellNeedsRepaintingState) cell = gameState.cell;
+        if (cell != null) return buildWidget(cell);
+        else return buildErrorCell();
+      },
+    );
+  }
+  
+  Widget buildWidget(Cell cell) {
     if (cell.type == CellType.source) {
       return CustomPaint(
         painter: SourcePainter(cell: cell),
@@ -23,7 +50,7 @@ class CellWidget extends StatelessWidget {
         painter: EndPainter(cell.color, cell.originalColor, cell.connections.first),
         size: Size(size, size),
       );
-    } else if (cell.bridgeConnections == null || cell.bridgeConnections.isEmpty) {
+    } else if (cell.bridgeConnections.isEmpty) { // cell.type == CellType.through
       if (cell.connections.length == 2) {
         if (cell.connections.containsAll({Side.up, Side.down})) {
           return CustomPaint(
@@ -91,8 +118,11 @@ class CellWidget extends StatelessWidget {
         size: Size(size, size),
       );
     }
-    return Container(color: Colors.red, width: 65, height: 65,); // error
+    return buildErrorCell();
   }
+
+  Container buildErrorCell() => Container(color: Colors.red, width: 65, height: 65,);
+  
 }
 
 class EndPainter extends CustomPainter {
@@ -164,14 +194,16 @@ class EndPainter extends CustomPainter {
           ..color = mixColors(bulbColor).color
     );
 
+
+
   }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return !(oldDelegate is EndPainter) || (
         oldDelegate is EndPainter && (
-            oldDelegate.colorIn != this.colorIn ||
-                oldDelegate.bulbColor != this.bulbColor ||
+            !SetEquality().equals(oldDelegate.colorIn, this.colorIn) ||
+                !SetEquality().equals(oldDelegate.bulbColor, this.bulbColor) ||
                 oldDelegate.side != this.side
         ));
   }
@@ -201,10 +233,8 @@ class SourcePainter extends CustomPainter {
             width: sourceWidth * 2,
             height: sourceWidth * 2),
         myPaint0);
+
     for (Side side in sides) {
-      if (sideColors[side] == null) {
-        sideColors[side] = {CellColor.gray};
-      }
       final myPaint1 = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = sourceWidth
@@ -236,15 +266,18 @@ class SourcePainter extends CustomPainter {
           break;
       }
     }
+
+
+
   }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return !(oldDelegate is SourcePainter) || (
         oldDelegate is SourcePainter && (
-            oldDelegate.sideColors != this.sideColors || // TODO: test this
-                oldDelegate.originalColor != this.originalColor ||
-                oldDelegate.sides != this.sides
+            !MapEquality().equals(oldDelegate.sideColors, this.sideColors) ||
+                !SetEquality().equals(oldDelegate.originalColor, this.originalColor) ||
+                !SetEquality().equals(oldDelegate.sides, this.sides)
         ));
   }
 }
@@ -296,13 +329,14 @@ class TriPainter extends CustomPainter {
             myPaint);
       }
     }
+
   }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return !(oldDelegate is TriPainter) || (
         oldDelegate is TriPainter && (
-            oldDelegate.color != this.color ||
+            !SetEquality().equals(oldDelegate.color, this.color) ||
                 oldDelegate.flatSide != this.flatSide
         ));
   }
@@ -343,7 +377,7 @@ class CurvePainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) {
     return !(oldDelegate is CurvePainter) || (
         oldDelegate is CurvePainter && (
-            oldDelegate.color != this.color ||
+            !SetEquality().equals(oldDelegate.color, this.color) ||
                 oldDelegate.connections != this.connections
         ));
   }
@@ -383,14 +417,15 @@ class XCrossedPainter extends CustomPainter {
           size.width / 2, -size.height / 2, size.width, size.height),
           pi * 0.5, pi / 2, false, myPaint1);
     }
+
   }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return !(oldDelegate is CrossedPainter)
-        || (oldDelegate is CrossedPainter &&
-            (oldDelegate.color0 != this.color0
-                || oldDelegate.color1 != this.color1 ||
+        || (oldDelegate is CrossedPainter && (
+            !SetEquality().equals(oldDelegate.color0, this.color0) ||
+                !SetEquality().equals(oldDelegate.color1, this.color1) ||
                 oldDelegate.variant != this.variant));
   }
 }
@@ -441,14 +476,15 @@ class CrossedPainter extends CustomPainter {
           Offset(size.width / 2, size.height),
           myPaint1);
     }
+
   }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return !(oldDelegate is CrossedPainter)
-        || (oldDelegate is CrossedPainter &&
-            (oldDelegate.color0 != this.color0
-                || oldDelegate.color1 != this.color1 ||
+        || (oldDelegate is CrossedPainter && (
+            !SetEquality().equals(oldDelegate.color0, this.color0) ||
+                !SetEquality().equals(oldDelegate.color1, this.color1) ||
                 oldDelegate.variant != this.variant));
   }
 }
@@ -485,12 +521,14 @@ class HubPainter extends CustomPainter {
         Offset(size.width / 2, (size.height / 2) + strokeWidth / 2),
         Offset(size.width / 2, size.height),
         myPaint);
+
   }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return !(oldDelegate is HubPainter) ||
-        (oldDelegate is HubPainter && oldDelegate.cellColor != this.cellColor);
+        (oldDelegate is HubPainter &&
+            !SetEquality().equals(oldDelegate.cellColor, this.cellColor));
   }
 }
 
@@ -518,32 +556,20 @@ class StraightPainter extends CustomPainter {
           Offset(size.width / 2, size.height),
           myPaint);
     }
+
   }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
     return !(oldDelegate is StraightPainter)
-        || (oldDelegate is StraightPainter
-            && (oldDelegate.isHorizontal != this.isHorizontal
-                || oldDelegate.cellColor != this.cellColor
-            ));
+        || (oldDelegate is StraightPainter && (
+            oldDelegate.isHorizontal != this.isHorizontal ||
+                !SetEquality().equals(oldDelegate.cellColor, this.cellColor)
+        ));
   }
 
 }
 
-
-class BlurWidget extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-        child: Container(
-          color: Colors.black.withOpacity(0.2),
-        ),),
-    );
-  }
-}
 
 extension on CellColor {
   Color get color {
@@ -562,9 +588,8 @@ extension on CellColor {
         return Color(0xffff00ff);
       case CellColor.white:
         return Color(0xffffffff);
-      case CellColor.gray:
+      default:
         return Color(0xff606060);
     }
-    return Color(0xff800080);
   }
 }

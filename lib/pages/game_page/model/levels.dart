@@ -11,6 +11,7 @@ class Level {
 
 final List<Level> levels = [
   Level(2, 1, 0, false),
+  Level(2, 1, 0, false),
   Level(3, 1, 0, false),
   Level(4, 1, 0, false),
   Level(4, 2, 0, false),
