@@ -70,9 +70,9 @@ class NewGamePopupContentWidget extends StatelessWidget {
                             color: Colors.white,
                             decoration: TextDecoration.none,
                             fontSize: 20)),
-                    Text('${FlutterI18n.translate(context, "text.width")}: ${level.wrap
+                    Text('${FlutterI18n.translate(context, "text.wrap")}: ${level.wrap
                         ? FlutterI18n.translate(context, "text.enabled") :
-                    FlutterI18n.translate(context, "text.disbled")}',
+                    FlutterI18n.translate(context, "text.disabled")}',
                         style: TextStyle(
                             fontFamily: 'Audiowide',
                             color: Colors.white,

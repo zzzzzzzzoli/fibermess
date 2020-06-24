@@ -30,7 +30,7 @@ class NumberPicker extends StatelessWidget {
   })  : assert(initialValue != null),
         assert(minValue != null),
         assert(maxValue != null),
-        assert(maxValue > minValue),
+        assert(maxValue >= minValue),
         assert(initialValue >= minValue && initialValue <= maxValue),
         decimalPlaces = 0,
         intScrollController = ScrollController(
@@ -107,7 +107,7 @@ class NumberPicker extends StatelessWidget {
   }
 
   Widget _integerListView(ThemeData themeData) {
-    var listItemCount = integerItemCount + 1;
+    var listItemCount = integerItemCount + 2;
     return Listener(
       onPointerUp: (ev) {
         ///used to detect that user stopped scrolling
