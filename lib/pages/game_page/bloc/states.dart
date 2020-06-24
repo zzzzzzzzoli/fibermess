@@ -1,4 +1,5 @@
 import 'package:fibermess/pages/game_page/model/cell.dart';
+import 'package:fibermess/pages/game_page/model/levels.dart';
 
 abstract class GameState {
   final int level;
@@ -28,9 +29,35 @@ class GameWonState extends GameState {
   GameWonState(this.maze, this.horizontalCellCount, this.cellSize, int level) : super(level);
 }
 
-class CellNeedsRepaintingState extends GameState {
-  final Cell cell;
-  final int cellIndex;
+class CellsNeedRepaintingState extends GameState {
+  final List<Cell> maze;
+  final Set<int> indices;
 
-  CellNeedsRepaintingState(this.cell, this.cellIndex, int level) : super(level);
+  CellsNeedRepaintingState(this.maze, this.indices, int level) : super(level);
+}
+
+class GamePausedState extends GameState {
+  final List<Cell> maze;
+  final int horizontalCellCount;
+  final double cellSize;
+
+  GamePausedState(this.maze, this.horizontalCellCount, this.cellSize, int level) : super(level);
+
+}
+
+class GameResumedState extends GameState {
+  final List<Cell> maze;
+  final int horizontalCellCount;
+  final double cellSize;
+  GameResumedState(this.maze, this.horizontalCellCount, this.cellSize, int level) : super(level);
+
+}
+
+class MazeAvailableState extends GameState {
+  MazeAvailableState(int level) : super(level);
+}
+
+class LevelSelectedState extends GameState {
+  final Level selectedLevel;
+  LevelSelectedState(this.selectedLevel, int level) : super(level);
 }

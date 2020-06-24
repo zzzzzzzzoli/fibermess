@@ -1,6 +1,11 @@
-import 'package:equatable/equatable.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-class Cell extends Equatable {
+import 'package:flutter/foundation.dart';
+
+part 'cell.g.dart';
+
+@JsonSerializable(nullable: true)
+class Cell {
 
   CellType type;
 
@@ -19,6 +24,9 @@ class Cell extends Equatable {
     Side.right : {},
   };
 
+  Map<String, dynamic> toJson() => _$CellToJson(this);
+  factory Cell.fromJson(Map<String, dynamic> json) => _$CellFromJson(json);
+
   Cell({this.type, this.connections, this.bridgeConnections, this.color,
     this.bridgeColor, this.originalColor, this.sourceSideColors});
 
@@ -36,6 +44,11 @@ class Cell extends Equatable {
 
   Cell.through() {
     this.type = CellType.through;
+  }
+
+  Cell.hub() {
+    this.type = CellType.through;
+    this.connections = {Side.left, Side.up, Side.right, Side.down};
   }
 
   bool get isOn {
@@ -63,8 +76,27 @@ class Cell extends Equatable {
   }
 
   @override
-  List<Object> get props => [this.type, this.connections, this.bridgeConnections, this.color,
-    this.bridgeColor, this.originalColor, this.sourceSideColors];
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is Cell &&
+              runtimeType == other.runtimeType &&
+              type == other.type &&
+              setEquals(connections, other.connections) &&
+              setEquals(bridgeConnections, other.bridgeConnections) &&
+              setEquals(color, other.color) &&
+              setEquals(bridgeColor, other.bridgeColor) &&
+              setEquals(originalColor, other.originalColor) &&
+              mapEquals(sourceSideColors, other.sourceSideColors);
+
+  @override
+  int get hashCode =>
+      type.hashCode ^
+      connections.hashCode ^
+      bridgeConnections.hashCode ^
+      color.hashCode ^
+      bridgeColor.hashCode ^
+      originalColor.hashCode ^
+      sourceSideColors.hashCode;
 
 }
 

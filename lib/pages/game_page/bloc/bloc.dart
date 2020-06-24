@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:math';
 import 'package:collection/collection.dart';
 
@@ -7,11 +8,14 @@ import 'package:fibermess/pages/game_page/bloc/states.dart';
 import 'package:fibermess/pages/game_page/model/cell.dart';
 import 'package:fibermess/pages/game_page/model/levels.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GameBloc extends Bloc<GameEvent, GameState> {
+  int pausedSeconds = 0;
+  int maxLevel = 1;
 
-  final double screenWidth;
-  final double screenHeight;
+  double screenWidth;
+  double screenHeight;
   int level;
   int horizontalCellCount;
   int verticalCellCount;
@@ -21,14 +25,15 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   int lightsCount;
   int lightsOnCount;
   int linksCount;
+  int dummyCount;
   bool wrap;
+  Set<int> sourceCoordinates = {};
 
   bool get isComplete => lightsCount == lightsOnCount;
 
-  GameBloc(this.screenWidth, this.screenHeight, {this.level = 1});
-
-  factory GameBloc.init(double screenWidth, double screenHeight, int level) =>
-      GameBloc(screenWidth, screenHeight, level: level)..add(NewMazeEvent(level));
+  GameBloc({this.level = 1}) {
+    getSavedMazeIfAny();
+  }
 
   @override
   GameState get initialState {
@@ -38,53 +43,78 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   @override
   Stream<GameState> mapEventToState(GameEvent event) async* {
     switch (event.runtimeType) {
+      case SelectLevelEvent:
+        int lvl = (event as SelectLevelEvent).selectedLevel;
+        yield LevelSelectedState(levels[lvl], lvl);
+        break;
       case NewMazeEvent:
+        pausedSeconds = 0;
         _getLevelInfoForScreen((event as NewMazeEvent).level);
         maze = getMaze();
+        yield MazeAvailableState(level);
         yield LoadedState(maze, horizontalCellCount, widgetSize, level);
         break;
-      case TurnCellLeftEvent:
+      case MazeRestoredEvent:
+        yield MazeAvailableState(level);
+        yield LoadedState(maze, horizontalCellCount, widgetSize, level);
         break;
       case TurnCellRightEvent:
-        yield* turnAndRecolorMaze((event as TurnCellRightEvent).cellIndex);
+        var indices =
+            turnAndGetIndicesToRecolor((event as TurnCellRightEvent).cellIndex);
+        yield CellsNeedRepaintingState(maze, indices, level);
+        if (isComplete) add(CompleteMazeEvent());
         break;
       case CompleteMazeEvent:
+        setMaxLevel(level + 1);
         yield GameWonState(maze, horizontalCellCount, widgetSize, level);
+        break;
+      case GameMenuPausedEvent:
+        yield GamePausedState(maze, horizontalCellCount, widgetSize, level);
+        break;
+      case GameMenuResumedEvent:
+        yield GameResumedState(maze, horizontalCellCount, widgetSize, level);
+        break;
+      case ShuffleMazeEvent:
+        shuffleAndRecolorMaze();
+        yield LoadedState(maze, horizontalCellCount, widgetSize, level);
         break;
     }
   }
 
   void _getLevelInfoForScreen(int l) {
-    if (screenWidth <= (screenHeight-20)) { // portrait
+    if (screenWidth <= (screenHeight - 20)) {
+      // portrait
       widgetSize = screenWidth / levels[l].width;
       horizontalCellCount = levels[l].width;
-      verticalCellCount = (horizontalCellCount * (screenHeight-20) / screenWidth).floor();
-    } else { // landscape
-      widgetSize = (screenHeight-20) / levels[l].width;
+      verticalCellCount =
+          (horizontalCellCount * (screenHeight - 20) / screenWidth).floor();
+    } else {
+      // landscape
+      widgetSize = (screenHeight - 20) / levels[l].width;
       verticalCellCount = levels[l].width;
-      horizontalCellCount = (verticalCellCount * screenWidth / (screenHeight-20)).floor();
+      horizontalCellCount =
+          (verticalCellCount * screenWidth / (screenHeight - 20)).floor();
     }
+    dummyCount = levels[l].dummies;
     sourcesCount = levels[l].sources;
     linksCount = levels[l].links;
     wrap = levels[l].wrap;
     level = l;
-//    var lvl = Level(horizontalCellCount, levels[l].sources, levels[l].links, levels[l].wrap, height: verticalCellCount);
-//    return lvl;
   }
 
   List<Cell> getMaze() {
-
     maze = List<Cell>(horizontalCellCount * verticalCellCount);
     var edges = List();
     var availableCellCount = maze.length;
     var remainingLinks = linksCount;
-    Set<int> sourceCoordinates = {};
+    sourceCoordinates = {};
+    Set<int> dummyCoordinates = {};
 
     // picking colors for sources
     List<CellColor> sourceColors = List();
     sourceColors.add(CellColor.values[Random().nextInt(3)]);
     for (int i = 1; i < sourcesCount; i++) {
-      int lastColorIndex = sourceColors[i-1].index;
+      int lastColorIndex = sourceColors[i - 1].index;
       int newColorIndex = lastColorIndex > 1 ? 0 : lastColorIndex + 1;
       sourceColors.add(CellColor.values[newColorIndex]);
     }
@@ -92,6 +122,23 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     while (sourceCoordinates.length < sourcesCount) {
       int source = Random().nextInt(horizontalCellCount * verticalCellCount);
       sourceCoordinates.add(source);
+    }
+    // add dummies
+    while (dummyCoordinates.length < dummyCount) {
+      int dummy = Random().nextInt(horizontalCellCount * verticalCellCount);
+      if (!sourceCoordinates.contains(dummy)) {
+        Set<int> surroundingCoordinates = {};
+        for (Side side in Side.values) {
+          surroundingCoordinates.add(calcStep(dummy, side));
+          surroundingCoordinates.add(calcSteps(dummy, [side, turnSide(side)]));
+        }
+        if (surroundingCoordinates.union(dummyCoordinates).length ==
+            surroundingCoordinates.length + dummyCoordinates.length) {
+          dummyCoordinates.add(dummy);
+          maze[dummy] = Cell.source({});
+          availableCellCount--;
+        }
+      }
     }
     for (int source in sourceCoordinates) {
       maze[source] = Cell.source({sourceColors.last});
@@ -124,8 +171,8 @@ class GameBloc extends Bloc<GameEvent, GameState> {
             q.add(nextCell);
             while (q.isNotEmpty && connectedSourceColors.length < 3) {
               int cellIndex = q.removeLast();
-              if (!seen.contains(cellIndex)
-                  && maze[cellIndex].type == CellType.source) {
+              if (!seen.contains(cellIndex) &&
+                  maze[cellIndex].type == CellType.source) {
                 seen.add(cellIndex);
                 connectedSourceColors.addAll(maze[cellIndex].originalColor);
               } else {
@@ -142,29 +189,34 @@ class GameBloc extends Bloc<GameEvent, GameState> {
               closeOpenEdge(nextCell);
             } else {
               // we get a color not in the connected source colors
-              var differentColor = CellColor.values.toSet().difference(connectedSourceColors).first;
+              var differentColor = CellColor.values
+                  .toSet()
+                  .difference(connectedSourceColors)
+                  .first;
               maze[nextCell]
                 ..type = CellType.source
                 ..sourceSideColors = {
-                  Side.up : {differentColor},
-                  Side.down : {differentColor},
-                  Side.left : {differentColor},
-                  Side.right : {differentColor}
+                  Side.up: {differentColor},
+                  Side.down: {differentColor},
+                  Side.left: {differentColor},
+                  Side.right: {differentColor}
                 }
                 ..originalColor = {differentColor};
               remainingLinks--;
               sourceCoordinates.add(nextCell);
             }
-          } else { // else we close it with a light
+          } else {
+            // else we close it with a light
             closeOpenEdge(nextCell);
           }
         }
       }
     }
+    for (int d in dummyCoordinates) maze[d] = Cell.hub();
     closeAllOpenEdges();
-    colorLights(sourceCoordinates);
+    colorLights();
     shuffle();
-    return colorMaze(sourceCoordinates);
+    return colorMaze();
   }
 
   void closeAllOpenEdges() {
@@ -182,10 +234,36 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     }
   }
 
-  void colorLights(Set<int> sourceCoordinates) {
+  void shuffleAndRecolorMaze() {
+    lightsOnCount = 0;
+    for (Cell cell in maze) {
+      cell.color = {};
+      cell.bridgeColor = {};
+      cell.sourceSideColors = {
+        Side.up: {},
+        Side.down: {},
+        Side.left: {},
+        Side.right: {},
+      };
+      int turn = Random().nextInt(4);
+      for (int i = 0; i < turn; i++) {
+        cell.turn();
+      }
+    }
     for (int source in sourceCoordinates) {
       for (Side s in maze[source].connections) {
-        addOriginalColorIfLight(calcStep(source, s), oppositeSide(s), maze[source].originalColor.last);
+        maze[source].sourceSideColors[s].addAll(maze[source].originalColor);
+        addColorToCell(calcStep(source, s), oppositeSide(s),
+            maze[source].originalColor.last);
+      }
+    }
+  }
+
+  void colorLights() {
+    for (int source in sourceCoordinates) {
+      for (Side s in maze[source].connections) {
+        addOriginalColorIfLight(calcStep(source, s), oppositeSide(s),
+            maze[source].originalColor.last);
       }
     }
   }
@@ -203,7 +281,8 @@ class GameBloc extends Bloc<GameEvent, GameState> {
           sidesToGo = cell.connections.difference({from});
         }
         for (Side s in sidesToGo) {
-          addOriginalColorIfLight(calcStep(cellCoordinate, s), oppositeSide(s), color);
+          addOriginalColorIfLight(
+              calcStep(cellCoordinate, s), oppositeSide(s), color);
         }
       }
     }
@@ -218,10 +297,12 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   }
 
   int calcStep(int from, Side step) {
-    return staticCalcStep(from, step, horizontalCellCount, verticalCellCount, maze.length, wrap);
+    return staticCalcStep(
+        from, step, horizontalCellCount, verticalCellCount, maze.length, wrap);
   }
 
-  static int staticCalcStep(int from, Side step, int width, int height, int mazeLength, bool wrap) {
+  static int staticCalcStep(
+      int from, Side step, int width, int height, int mazeLength, bool wrap) {
     switch (step) {
       case Side.left:
         if (from % width > 0) {
@@ -273,14 +354,12 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     maze[edge].color = {};
   }
 
-
   void closeOpenEdge(int edge) {
-    if (maze[edge].connections.length == 1
-        && maze[edge].type != CellType.source) {
+    if (maze[edge].connections.length == 1 &&
+        maze[edge].type != CellType.source) {
       maze[edge]
         ..type = CellType.end
-        ..originalColor = {}
-      ;
+        ..originalColor = {};
     }
   }
 
@@ -298,17 +377,24 @@ class GameBloc extends Bloc<GameEvent, GameState> {
         result.add([s]);
       } else if (maze[next].type == CellType.through &&
           maze[next].connections.length == 2) {
-        if (twoOver > 0 && maze[twoOver] == null &&
+        if (twoOver > 0 &&
+            maze[twoOver] == null &&
             maze[next].connections.containsAll(
                 {turnSideInDirection(s, 1), turnSideInDirection(s, -1)})) {
           result.add([s, s]);
         }
-        if (corner1 > 0 && maze[corner1] == null &&
-            maze[next].connections.containsAll({s, turnSideInDirection(s, 1)})) {
+        if (corner1 > 0 &&
+            maze[corner1] == null &&
+            maze[next]
+                .connections
+                .containsAll({s, turnSideInDirection(s, 1)})) {
           result.add([s, turnSideInDirection(s, -1)]);
         }
-        if (corner2 > 0 && maze[corner2] == null &&
-            maze[next].connections.containsAll({s, turnSideInDirection(s, 1)})) {
+        if (corner2 > 0 &&
+            maze[corner2] == null &&
+            maze[next]
+                .connections
+                .containsAll({s, turnSideInDirection(s, 1)})) {
           result.add([s, turnSideInDirection(s, 1)]);
         }
       }
@@ -316,46 +402,69 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     return result;
   }
 
-  List<Cell> colorMaze(Set<int> sourceIndices) {
+  List<Cell> colorMaze() {
     lightsCount = 0;
     lightsOnCount = 0;
     for (Cell c in maze) {
       if (c.type == CellType.end) lightsCount++;
     }
     // propagating colors from each source
-    for (int source in sourceIndices) {
+    for (int source in sourceCoordinates) {
       for (Side s in maze[source].connections) {
         maze[source].sourceSideColors[s].addAll(maze[source].originalColor);
-        addColorToCell(calcStep(source, s), oppositeSide(s), maze[source].originalColor.last);
+        addColorToCell(calcStep(source, s), oppositeSide(s),
+            maze[source].originalColor.last);
       }
     }
     return maze;
   }
 
-  void addColorToCell(int cellCoordinate, Side from, CellColor color) {
+  void addColorToCell(int cellCoordinate, Side fromSide, CellColor color) {
     if (0 <= cellCoordinate && cellCoordinate < maze.length) {
-      Cell cell = maze[cellCoordinate];
-      cell.sourceSideColors[from].add(color);
-      if (cell.type == CellType.source) return;
-      Set<Side> sidesToVisit = {};
-      if (cell.connections.contains(from)) {
-        cell.color.add(color);
-        lightsOnCount += cell.isOn ? 1 : 0;
-        sidesToVisit = cell.connections.difference({from});
-      } else if (cell.bridgeConnections.contains(from)) {
-        cell.bridgeColor.add(color);
-        sidesToVisit = cell.bridgeConnections.difference({from});
-      }
-      for (Side s in sidesToVisit) {
-        addColorToCell(calcStep(cellCoordinate, s), oppositeSide(s), color);
+      Queue queue = new Queue();
+      Map<int, Set<Side>> seen = HashMap(); // avoiding loops
+      queue.add([cellCoordinate, fromSide]);
+      while (queue.isNotEmpty) {
+        var popped = queue.removeLast();
+        int index = popped[0];
+        if (index >= 0) {
+          Cell cell = maze[index];
+          Side from = popped[1];
+          if (!seen.containsKey(index) || !seen[index].contains(from)) {
+            seen.putIfAbsent(index, () => {});
+            seen[index].add(from);
+            cell.sourceSideColors[from].add(color);
+            if (cell.type != CellType.source) {
+              Set<Side> sidesToVisit = {};
+              if (cell.connections.contains(from)) {
+                bool wasOn = cell.isOn;
+                cell.color.add(color);
+                if (wasOn && !cell.isOn) {
+                  lightsOnCount--;
+                }
+                if (!wasOn && cell.isOn) {
+                  lightsOnCount++;
+                }
+                sidesToVisit = cell.connections.difference({from});
+              } else if (cell.bridgeConnections.contains(from)) {
+                cell.bridgeColor.add(color);
+                sidesToVisit = cell.bridgeConnections.difference({from});
+              }
+              for (Side s in sidesToVisit) {
+                queue.add([calcStep(index, s), oppositeSide(s)]);
+              }
+            }
+          }
+        }
       }
     }
   }
 
-  Stream<GameState> turnAndRecolorMaze(int index) async* {
+  Set<int> turnAndGetIndicesToRecolor(int index) {
+    Set<int> indicesToRecolor = {};
     Cell cell = maze[index];
     if (cell.connections.length == 0 || cell.connections.length == 4) {
-      return; // cell with no connections or all four sides connected makes no difference when turned
+      return indicesToRecolor; // cell with no connections or all four sides connected makes no difference when turned
     }
 
     bool wasOn = cell.isOn;
@@ -363,15 +472,20 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       // End/light has no outgoing light
       cell.turn();
       cell.color = cell.sourceSideColors[cell.connections.first];
-      if (wasOn && !cell.isOn) lightsOnCount--;
-      if (!wasOn && cell.isOn) lightsOnCount++;
-      yield CellNeedsRepaintingState(cell, index, level);
-      if (isComplete) yield GameWonState(maze, horizontalCellCount, widgetSize, level);
+      if (wasOn && !cell.isOn) {
+        lightsOnCount--;
+      }
+      if (!wasOn && cell.isOn) {
+        lightsOnCount++;
+      }
+      indicesToRecolor.add(index);
+
     } else {
       // Source and through have light going out
       // 1st remove all color from connecting sides
       for (Side s in cell.connections.union(cell.bridgeConnections)) {
-        yield* recolorMaze(calcStep(index, s), oppositeSide(s), {});
+        indicesToRecolor.addAll(
+            getIndicesToRecolor(calcStep(index, s), oppositeSide(s), {}));
       }
 
       // 2nd we turn the cell and get the actual color
@@ -392,12 +506,13 @@ class GameBloc extends Bloc<GameEvent, GameState> {
           cell.bridgeColor.addAll(cell.sourceSideColors[s]);
         }
       }
-      yield CellNeedsRepaintingState(cell, index, level);
+      indicesToRecolor.add(index);
       // 3rd propagating the actual color
       // from sources only original color goes out / special use of sourceSideColors
       if (cell.type == CellType.source) {
         for (Side s in cell.connections) {
-          yield* recolorMaze(calcStep(index, s), oppositeSide(s), cell.originalColor);
+          indicesToRecolor.addAll(getIndicesToRecolor(
+              calcStep(index, s), oppositeSide(s), cell.originalColor));
         }
       } else {
         for (Side s in cell.connections) {
@@ -406,7 +521,8 @@ class GameBloc extends Bloc<GameEvent, GameState> {
           for (Side side in cell.connections.difference({s})) {
             outColor.addAll(cell.sourceSideColors[side]);
           }
-          yield* recolorMaze(calcStep(index, s), oppositeSide(s), outColor);
+          indicesToRecolor.addAll(getIndicesToRecolor(
+              calcStep(index, s), oppositeSide(s), outColor));
         }
         for (Side s in cell.bridgeConnections) {
           Set<CellColor> outColor = {};
@@ -414,55 +530,131 @@ class GameBloc extends Bloc<GameEvent, GameState> {
           for (Side side in cell.bridgeConnections.difference({s})) {
             outColor.addAll(cell.sourceSideColors[side]);
           }
-          yield* recolorMaze(calcStep(index, s), oppositeSide(s), outColor);
+          indicesToRecolor.addAll(getIndicesToRecolor(
+              calcStep(index, s), oppositeSide(s), outColor));
         }
       }
     }
-
+    return indicesToRecolor;
   }
 
-  Stream<GameState> recolorMaze(int index, Side from, Set<CellColor> color) async* {
-    if (0 <= index && // valid index
-        !SetEquality().equals(maze[index].sourceSideColors[from], color)) { // only need to recolor if new colors are different
-      Cell cell = maze[index];
-      cell.sourceSideColors[from] = Set.of(color);
-      if (cell.type == CellType.source) {
-        cell.sourceSideColors[from].addAll(cell.originalColor); // adding original color that was overwritten
-        yield CellNeedsRepaintingState(cell, index, level);
-      } else if (cell.connections.contains(from)) {
-        bool wasOn = cell.isOn;
-        cell.color = {};
-        for (Side s in cell.connections) {
-          cell.color.addAll(cell.sourceSideColors[s]);
-        }
-        yield CellNeedsRepaintingState(cell, index, level);
-        if (wasOn && !cell.isOn) lightsOnCount--;
-        if (!wasOn && cell.isOn) lightsOnCount++;
-        if (isComplete) yield GameWonState(maze, horizontalCellCount, widgetSize, level);
-        for (Side side in cell.connections) {
-          Set<CellColor> outColors = {};
-          for (Side s in cell.connections.difference({side})) {
-            outColors.addAll(cell.sourceSideColors[s]);
+  Set<int> getIndicesToRecolor(int startIndex, Side fromSide, Set<CellColor> startColor) {
+    Queue queue = new Queue();
+    Set<int> indicesToRecolor = {};
+    Map<int, Set<Side>> seen = HashMap(); // avoiding loops
+    queue.add([startIndex, fromSide, startColor]);
+    while (queue.isNotEmpty) {
+      var val = queue.removeLast();
+      int index = val[0];
+      Side from = val[1];
+      Set<CellColor> color = val[2];
+      if (0 <= index &&
+          (!seen.containsKey(index) || !seen[index].contains(from)) &&
+          !SetEquality().equals(maze[index].sourceSideColors[from], color)) {
+        // only need to recolor if new colors are different
+        seen.putIfAbsent(index, () => {});
+        seen[index].add(from);
+        Cell cell = maze[index];
+        cell.sourceSideColors[from] = Set.of(color);
+        if (cell.type == CellType.source) {
+          cell.sourceSideColors[from].addAll(
+              cell.originalColor); // adding original color that was overwritten
+          indicesToRecolor.add(index);
+        } else if (cell.connections.contains(from)) {
+          bool wasOn = cell.isOn;
+          cell.color = {};
+          for (Side s in cell.connections) {
+            cell.color.addAll(cell.sourceSideColors[s]);
           }
-          yield* recolorMaze(calcStep(index, side), oppositeSide(side), outColors);
-        }
-
-      } else if (cell.bridgeConnections.contains(from)) {
-        cell.bridgeColor = {};
-        for (Side s in cell.bridgeConnections) {
-          cell.bridgeColor.addAll(cell.sourceSideColors[s]);
-        }
-        yield CellNeedsRepaintingState(cell, index, level);
-        for (Side side in cell.bridgeConnections) {
-          Set<CellColor> outColors = {};
-          for (Side s in cell.bridgeConnections.difference({side})) {
-            outColors.addAll(cell.sourceSideColors[s]);
+          indicesToRecolor.add(index);
+          if (wasOn && !cell.isOn) {
+            lightsOnCount--;
           }
-          yield* recolorMaze(calcStep(index, side), oppositeSide(side), outColors);
+          if (!wasOn && cell.isOn) {
+            lightsOnCount++;
+          }
+          for (Side side in cell.connections) {
+            Set<CellColor> outColors = {};
+            for (Side s in cell.connections.difference({side})) {
+              outColors.addAll(cell.sourceSideColors[s]);
+            }
+            queue.add([calcStep(index, side), oppositeSide(side), outColors]);
+          }
+        } else if (cell.bridgeConnections.contains(from)) {
+          cell.bridgeColor = {};
+          for (Side s in cell.bridgeConnections) {
+            cell.bridgeColor.addAll(cell.sourceSideColors[s]);
+          }
+          indicesToRecolor.add(index);
+          for (Side side in cell.bridgeConnections) {
+            Set<CellColor> outColors = {};
+            for (Side s in cell.bridgeConnections.difference({side})) {
+              outColors.addAll(cell.sourceSideColors[s]);
+            }
+            queue.add([calcStep(index, side), oppositeSide(side), outColors]);
+          }
         }
       }
     }
+    return indicesToRecolor;
   }
 
+  Future<void> saveMaze() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    var mazeJson = jsonEncode(maze.map((e) => e.toJson()).toList());
+    prefs.setString("maze", mazeJson);
+    prefs.setInt("level", level);
+    prefs.setInt("width", horizontalCellCount);
+    prefs.setInt("seconds", pausedSeconds);
+    prefs.setInt("lights", lightsCount);
+    prefs.setInt("lightson", lightsOnCount);
+    prefs.setInt("links", linksCount);
+    prefs.setInt("dummies", dummyCount);
+    prefs.setBool("wrap", wrap);
+    prefs.setString(
+        "sources", jsonEncode(sourceCoordinates.toList(growable: false)));
+  }
 
+  void setMazeDimensions(double width, double height) {
+    this.screenWidth = width;
+    this.screenHeight = height;
+    if (horizontalCellCount != null && horizontalCellCount > 0) {
+      widgetSize = screenWidth / horizontalCellCount;
+      add(MazeRestoredEvent());
+    }
+  }
+
+  Future<void> getSavedMazeIfAny() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (prefs.containsKey("maze")) {
+      maze = List.from(jsonDecode(prefs.get("maze")))
+          .map((e) => Cell.fromJson(e))
+          .toList(growable: false);
+      level = prefs.get("level");
+      horizontalCellCount = prefs.get("width");
+      verticalCellCount = maze.length ~/ horizontalCellCount;
+      pausedSeconds = prefs.get("seconds");
+      lightsCount = prefs.get("lights");
+      lightsOnCount = prefs.get("lightson");
+      linksCount = prefs.get("links");
+      dummyCount = prefs.get("dummies");
+      wrap = prefs.get("wrap");
+      sourceCoordinates = Set.from(jsonDecode(prefs.get("sources")));
+      if (screenWidth != null) {
+        widgetSize = screenWidth / horizontalCellCount;
+        add(MazeRestoredEvent());
+      }
+    }
+    if (prefs.containsKey("maxLevel")) {
+      maxLevel = prefs.get("maxLevel");
+    }
+  }
+
+  Future<void> setMaxLevel(int newMaxLevel) async {
+    if (maxLevel < newMaxLevel) {
+      maxLevel = newMaxLevel;
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      prefs.setInt("maxLevel", maxLevel);
+    }
+  }
 }

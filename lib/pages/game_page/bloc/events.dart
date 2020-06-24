@@ -8,6 +8,8 @@ class NewMazeEvent extends GameEvent {
   NewMazeEvent(this.level);
 }
 
+class MazeRestoredEvent extends GameEvent {}
+
 class TurnCellLeftEvent extends GameEvent {
   final int cellIndex;
 
@@ -21,3 +23,18 @@ class TurnCellRightEvent extends GameEvent {
 }
 
 class CompleteMazeEvent extends GameEvent {}
+
+class GameMenuPausedEvent extends GameEvent {}
+
+class GameMenuResumedEvent extends GameEvent {}
+
+class ShuffleMazeEvent extends GameEvent {}
+
+class MazeAvailableEvent extends GameEvent {}
+
+class SelectLevelEvent extends GameEvent {
+  final int selectedLevel;
+
+  SelectLevelEvent(this.selectedLevel);
+
+}

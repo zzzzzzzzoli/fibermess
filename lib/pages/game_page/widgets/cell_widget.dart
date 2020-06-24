@@ -19,20 +19,26 @@ class CellWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<GameBloc, GameState>(
       condition: (GameState oldState, GameState newState) {
-        if (newState is CellNeedsRepaintingState) return newState.cellIndex == cellIndex;
+        if (newState is CellsNeedRepaintingState) return newState.indices.contains(cellIndex);
+
+        if (newState is GamePausedState || newState is GameResumedState || newState is GameWonState) {
+          return false;
+        }
         Cell oldCell, newCell;
         if (newState is LoadedState) newCell = newState.maze[cellIndex];
         if (oldState is LoadedState) oldCell = oldState.maze[cellIndex];
-        if (oldState is CellNeedsRepaintingState) oldCell = oldState.cell;
+        if (oldState is CellsNeedRepaintingState) oldCell = oldState.maze[cellIndex];
         if (newState is GameWonState) newCell = newState.maze[cellIndex];
         if (oldState is GameWonState) oldCell = oldState.maze[cellIndex];
-        return oldCell != newCell;
+        return oldCell != newCell && newCell != null;
       },
       builder: (_, gameState) {
         Cell cell;
         if (gameState is LoadedState) cell = gameState.maze[cellIndex];
         if (gameState is GameWonState) cell = gameState.maze[cellIndex];
-        if (gameState is CellNeedsRepaintingState) cell = gameState.cell;
+        if (gameState is CellsNeedRepaintingState) cell = gameState.maze[cellIndex];
+        if (gameState is GamePausedState) cell = gameState.maze[cellIndex];
+        if (gameState is GameResumedState) cell = gameState.maze[cellIndex];
         if (cell != null) return buildWidget(cell);
         else return buildErrorCell();
       },
@@ -47,24 +53,24 @@ class CellWidget extends StatelessWidget {
       );
     } else if (cell.type == CellType.end) {
       return CustomPaint(
-        painter: EndPainter(cell.color, cell.originalColor, cell.connections.first),
+        painter: EndPainter(cell.color, cell.originalColor, cell.connections.first, cell.sourceSideColors),
         size: Size(size, size),
       );
     } else if (cell.bridgeConnections.isEmpty) { // cell.type == CellType.through
       if (cell.connections.length == 2) {
         if (cell.connections.containsAll({Side.up, Side.down})) {
           return CustomPaint(
-            painter: StraightPainter(false, cell.color),
+            painter: StraightPainter(false, cell.color, cell.sourceSideColors),
             size: Size(size, size),
           );
         } else if (cell.connections.containsAll({Side.left, Side.right})) {
           return CustomPaint(
-            painter: StraightPainter(true, cell.color),
+            painter: StraightPainter(true, cell.color, cell.sourceSideColors),
             size: Size(size, size),
           );
         } else {
           return CustomPaint(
-            painter: CurvePainter(cell.connections, cell.color),
+            painter: CurvePainter(cell.connections, cell.color, cell.sourceSideColors),
             size: Size(size, size),
           );
         }
@@ -72,66 +78,234 @@ class CellWidget extends StatelessWidget {
         Set<Side> s = Side.values.toSet();
         Side flatSide = s.difference(cell.connections).first;
         return CustomPaint(
-          painter: TriPainter(cell.color, flatSide),
+          painter: TriPainter(cell.color, flatSide, cell.sourceSideColors),
           size: Size(size, size),
         );
       } else {
         return CustomPaint(
-          painter: HubPainter(cell.color),
+          painter: HubPainter(cell.color, cell.sourceSideColors),
           size: Size(size, size),
         );
       }
     } else if (cell.connections.containsAll({Side.up, Side.down})
         && cell.bridgeConnections.containsAll({Side.left, Side.right})) {
       return CustomPaint(
-        painter: CrossedPainter(cell.bridgeColor, cell.color, false),
+        painter: CrossedPainter(cell.bridgeColor, cell.color, false, cell.sourceSideColors),
         size: Size(size, size),
       );
     } else if (cell.connections.containsAll({Side.left, Side.right})
         && cell.bridgeConnections.containsAll({Side.up, Side.down})) {
       return CustomPaint(
-        painter: CrossedPainter(cell.color, cell.bridgeColor, true),
+        painter: CrossedPainter(cell.color, cell.bridgeColor, true, cell.sourceSideColors),
         size: Size(size, size),
       );
     } else if (cell.connections.containsAll({Side.down, Side.left})
         && cell.bridgeConnections.containsAll({Side.up, Side.right})) {
       return CustomPaint(
-        painter: XCrossedPainter(cell.color, cell.bridgeColor, false),
+        painter: XCrossedPainter(cell.color, cell.bridgeColor, false, cell.sourceSideColors),
         size: Size(size, size),
       );
     } else if (cell.connections.containsAll({Side.up, Side.right})
         && cell.bridgeConnections.containsAll({Side.down, Side.left})){
       return CustomPaint(
-        painter: XCrossedPainter(cell.bridgeColor, cell.color, false),
+        painter: XCrossedPainter(cell.bridgeColor, cell.color, false, cell.sourceSideColors),
         size: Size(size, size),
       );
     } else if ((cell.connections.containsAll({Side.up, Side.left})
         && cell.bridgeConnections.containsAll({Side.down, Side.right}))) {
       return CustomPaint(
-        painter: XCrossedPainter(cell.color, cell.bridgeColor, true),
+        painter: XCrossedPainter(cell.color, cell.bridgeColor, true, cell.sourceSideColors),
         size: Size(size, size),
       );
     } else if (cell.connections.containsAll({Side.down, Side.right})
         && cell.bridgeConnections.containsAll({Side.up, Side.left})) {
       return CustomPaint(
-        painter: XCrossedPainter(cell.bridgeColor, cell.color, true),
+        painter: XCrossedPainter(cell.bridgeColor, cell.color, true, cell.sourceSideColors),
         size: Size(size, size),
       );
     }
     return buildErrorCell();
   }
 
-  Container buildErrorCell() => Container(color: Colors.red, width: 65, height: 65,);
+  Container buildErrorCell() => Container(color: Colors.red, width: size, height: size,);
   
 }
 
-class EndPainter extends CustomPainter {
+abstract class FiberPainter extends CustomPainter {
+  Map<Side, Set<CellColor>> sideColorMap;
+
+  FiberPainter(this.sideColorMap);
+
+  void deb(Canvas canvas, Size size, Map<Side, Set<CellColor>> sideColors) {
+    return;
+    var paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = Colors.grey;
+
+    var paint2 = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.black;
+
+    canvas.drawCircle(Offset(size.width / 2 - size.width / 10, size.width / 10),
+        size.width / 30, paint2);
+    canvas.drawCircle(Offset(size.width / 2 - size.width / 10, size.width / 10),
+        size.width / 30 + 1, paint);
+    canvas.drawCircle(
+        Offset(size.width / 2, size.width / 10), size.width / 30, paint2);
+    canvas.drawCircle(
+        Offset(size.width / 2, size.width / 10), size.width / 30 + 1, paint);
+    canvas.drawCircle(Offset(size.width / 2 + size.width / 10, size.width / 10),
+        size.width / 30, paint2);
+    canvas.drawCircle(Offset(size.width / 2 + size.width / 10, size.width / 10),
+        size.width / 30 + 1, paint);
+
+    canvas.drawCircle(
+        Offset(size.width / 2 - size.width / 10, size.height - size.width / 10),
+        size.width / 30, paint2);
+    canvas.drawCircle(
+        Offset(size.width / 2 - size.width / 10, size.height - size.width / 10),
+        size.width / 30 + 1, paint);
+    canvas.drawCircle(
+        Offset(size.width / 2, size.height - size.width / 10), size.width / 30,
+        paint2);
+    canvas.drawCircle(Offset(size.width / 2, size.height - size.width / 10),
+        size.width / 30 + 1, paint);
+    canvas.drawCircle(
+        Offset(size.width / 2 + size.width / 10, size.height - size.width / 10),
+        size.width / 30, paint2);
+    canvas.drawCircle(
+        Offset(size.width / 2 + size.width / 10, size.height - size.width / 10),
+        size.width / 30 + 1, paint);
+
+    canvas.drawCircle(
+        Offset(size.width / 10, size.height / 2 - size.width / 10),
+        size.width / 30, paint2);
+    canvas.drawCircle(
+        Offset(size.width / 10, size.height / 2 - size.width / 10),
+        size.width / 30 + 1, paint);
+    canvas.drawCircle(
+        Offset(size.width / 10, size.height / 2), size.width / 30, paint2);
+    canvas.drawCircle(
+        Offset(size.width / 10, size.height / 2), size.width / 30 + 1, paint);
+    canvas.drawCircle(
+        Offset(size.width / 10, size.height / 2 + size.width / 10),
+        size.width / 30, paint2);
+    canvas.drawCircle(
+        Offset(size.width / 10, size.height / 2 + size.width / 10),
+        size.width / 30 + 1, paint);
+
+    canvas.drawCircle(
+        Offset(size.width - size.width / 10, size.height / 2 - size.width / 10),
+        size.width / 30, paint2);
+    canvas.drawCircle(
+        Offset(size.width - size.width / 10, size.height / 2 - size.width / 10),
+        size.width / 30 + 1, paint);
+    canvas.drawCircle(
+        Offset(size.width - size.width / 10, size.height / 2), size.width / 30,
+        paint2);
+    canvas.drawCircle(Offset(size.width - size.width / 10, size.height / 2),
+        size.width / 30 + 1, paint);
+    canvas.drawCircle(
+        Offset(size.width - size.width / 10, size.height / 2 + size.width / 10),
+        size.width / 30, paint2);
+    canvas.drawCircle(
+        Offset(size.width - size.width / 10, size.height / 2 + size.width / 10),
+        size.width / 30 + 1, paint);
+
+    if (sideColors[Side.up].contains(CellColor.red)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.red.color;
+      canvas.drawCircle(
+          Offset(size.width / 2 - size.width / 10, size.width / 10),
+          size.width / 30, paint);
+    }
+    if (sideColors[Side.up].contains(CellColor.green)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.green.color;
+      canvas.drawCircle(
+          Offset(size.width / 2, size.width / 10), size.width / 30, paint);
+    }
+    if (sideColors[Side.up].contains(CellColor.blue)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.blue.color;
+      canvas.drawCircle(
+          Offset(size.width / 2 + size.width / 10, size.width / 10),
+          size.width / 30, paint);
+    }
+
+    if (sideColors[Side.down].contains(CellColor.red)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.red.color;
+      canvas.drawCircle(Offset(
+          size.width / 2 - size.width / 10, size.height - size.width / 10),
+          size.width / 30, paint);
+    }
+    if (sideColors[Side.down].contains(CellColor.green)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.green.color;
+      canvas.drawCircle(Offset(size.width / 2, size.height - size.width / 10),
+          size.width / 30, paint);
+    }
+    if (sideColors[Side.down].contains(CellColor.blue)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.blue.color;
+      canvas.drawCircle(Offset(
+          size.width / 2 + size.width / 10, size.height - size.width / 10),
+          size.width / 30, paint);
+    }
+
+    if (sideColors[Side.right].contains(CellColor.red)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.red.color;
+      canvas.drawCircle(Offset(
+          size.width - size.width / 10, size.height / 2 - size.width / 10),
+          size.width / 30, paint);
+    }
+    if (sideColors[Side.right].contains(CellColor.green)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.green.color;
+      canvas.drawCircle(Offset(size.width - size.width / 10, size.height / 2),
+          size.width / 30, paint);
+    }
+    if (sideColors[Side.right].contains(CellColor.blue)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.blue.color;
+      canvas.drawCircle(Offset(
+          size.width - size.width / 10, size.height / 2 + size.width / 10),
+          size.width / 30, paint);
+    }
+
+    if (sideColors[Side.left].contains(CellColor.red)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.red.color;
+      canvas.drawCircle(
+          Offset(size.width / 10, size.height / 2 - size.width / 10),
+          size.width / 30, paint);
+    }
+    if (sideColors[Side.left].contains(CellColor.green)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.green.color;
+      canvas.drawCircle(
+          Offset(size.width / 10, size.height / 2), size.width / 30, paint);
+    }
+    if (sideColors[Side.left].contains(CellColor.blue)) {
+      paint.style = PaintingStyle.fill;
+      paint.color = CellColor.blue.color;
+      canvas.drawCircle(
+          Offset(size.width / 10, size.height / 2 + size.width / 10),
+          size.width / 30, paint);
+    }
+  }
+}
+
+class EndPainter extends FiberPainter {
 
   Set<CellColor> colorIn;
   Set<CellColor> bulbColor;
   Side side;
 
-  EndPainter(this.colorIn, this.bulbColor, this.side);
+  EndPainter(this.colorIn, this.bulbColor, this.side, sideColors) : super(sideColors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -194,9 +368,10 @@ class EndPainter extends CustomPainter {
           ..color = mixColors(bulbColor).color
     );
 
-
+    deb(canvas, size, sideColorMap);
 
   }
+
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
@@ -209,7 +384,7 @@ class EndPainter extends CustomPainter {
   }
 }
 
-class SourcePainter extends CustomPainter {
+class SourcePainter extends FiberPainter {
 
   Set<CellColor> originalColor;
   Set<Side> sides;
@@ -218,7 +393,7 @@ class SourcePainter extends CustomPainter {
   SourcePainter({Cell cell}) :
         originalColor = cell.originalColor,
         sides = cell.connections,
-        sideColors = cell.sourceSideColors;
+        sideColors = cell.sourceSideColors, super(cell.sourceSideColors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -267,7 +442,7 @@ class SourcePainter extends CustomPainter {
       }
     }
 
-
+    deb(canvas, size, sideColors);
 
   }
 
@@ -283,12 +458,12 @@ class SourcePainter extends CustomPainter {
 }
 
 
-class TriPainter extends CustomPainter {
+class TriPainter extends FiberPainter {
 
   Set<CellColor> color;
   Side flatSide;
 
-  TriPainter(this.color, this.flatSide);
+  TriPainter(this.color, this.flatSide, sideColors) : super(sideColors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -329,7 +504,7 @@ class TriPainter extends CustomPainter {
             myPaint);
       }
     }
-
+    deb(canvas, size, sideColorMap);
   }
 
   @override
@@ -342,12 +517,12 @@ class TriPainter extends CustomPainter {
   }
 }
 
-class CurvePainter extends CustomPainter {
+class CurvePainter extends FiberPainter {
 
   Set<CellColor> color;
   Set<Side> connections;
 
-  CurvePainter(this.connections, this.color);
+  CurvePainter(this.connections, this.color, sc) : super(sc);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -370,7 +545,7 @@ class CurvePainter extends CustomPainter {
       canvas.drawArc(Rect.fromLTWH(size.width/2, size.height/2, size.width, size.height),
           pi, pi/2, false, myPaint);
     }
-
+    deb(canvas, size, sideColorMap);
   }
 
   @override
@@ -385,13 +560,13 @@ class CurvePainter extends CustomPainter {
 
 }
 
-class XCrossedPainter extends CustomPainter {
+class XCrossedPainter extends FiberPainter {
 
   Set<CellColor> color0;
   Set<CellColor> color1;
   bool variant;
 
-  XCrossedPainter(this.color0, this.color1, this.variant);
+  XCrossedPainter(this.color0, this.color1, this.variant, sc) : super(sc);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -417,7 +592,7 @@ class XCrossedPainter extends CustomPainter {
           size.width / 2, -size.height / 2, size.width, size.height),
           pi * 0.5, pi / 2, false, myPaint1);
     }
-
+    deb(canvas, size, sideColorMap);
   }
 
   @override
@@ -430,13 +605,13 @@ class XCrossedPainter extends CustomPainter {
   }
 }
 
-class CrossedPainter extends CustomPainter {
+class CrossedPainter extends FiberPainter {
 
   Set<CellColor> color0;
   Set<CellColor> color1;
   bool variant;
 
-  CrossedPainter(this.color0, this.color1, this.variant);
+  CrossedPainter(this.color0, this.color1, this.variant, sc) : super(sc);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -476,7 +651,7 @@ class CrossedPainter extends CustomPainter {
           Offset(size.width / 2, size.height),
           myPaint1);
     }
-
+    deb(canvas, size, sideColorMap);
   }
 
   @override
@@ -489,11 +664,11 @@ class CrossedPainter extends CustomPainter {
   }
 }
 
-class HubPainter extends CustomPainter {
+class HubPainter extends FiberPainter {
 
   Set<CellColor> cellColor;
 
-  HubPainter(this.cellColor);
+  HubPainter(this.cellColor, sc) : super(sc);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -521,7 +696,7 @@ class HubPainter extends CustomPainter {
         Offset(size.width / 2, (size.height / 2) + strokeWidth / 2),
         Offset(size.width / 2, size.height),
         myPaint);
-
+    deb(canvas, size, sideColorMap);
   }
 
   @override
@@ -532,12 +707,12 @@ class HubPainter extends CustomPainter {
   }
 }
 
-class StraightPainter extends CustomPainter {
+class StraightPainter extends FiberPainter {
 
   bool isHorizontal;
   Set<CellColor> cellColor;
 
-  StraightPainter(this.isHorizontal, this.cellColor);
+  StraightPainter(this.isHorizontal, this.cellColor, sc) : super(sc);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -556,7 +731,7 @@ class StraightPainter extends CustomPainter {
           Offset(size.width / 2, size.height),
           myPaint);
     }
-
+    deb(canvas, size, sideColorMap);
   }
 
   @override

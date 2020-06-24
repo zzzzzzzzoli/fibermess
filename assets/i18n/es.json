@@ -1,0 +1,28 @@
+{
+  "appName" : "fibermess",
+  "button" : {
+    "label" : {
+      "resumeGame" : "Reanudar Juego",
+      "newGame" : "Nuevo Juego",
+      "customGame" : "Juego Pesonalisado",
+      "play" : "Jugar",
+      "menu" : "Menu",
+      "shuffle" : "Barajar"
+    }
+  },
+  "text" : {
+    "width" : "Ancho",
+    "sources" : "Fuentes",
+    "links" : "Vinculos",
+    "dummies" : "Desconectados",
+    "wrap" : "Wrap",
+    "enabled" : "Habilitado",
+    "disabled" : "Deshabilitado",
+    "level" : {
+      "count-0": "Nivel {count}",
+      "count-1": "Nivel {count}",
+      "count-2": "Nivel {count}"
+    },
+    "paused" : "Pausado"
+  }
+}
