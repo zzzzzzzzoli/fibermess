@@ -44,7 +44,7 @@ class Fibermess extends StatelessWidget {
       DeviceOrientation.portraitUp,
     ]);
 
-    FirebaseAdMob.instance.initialize(appId: admobAppId);
+    FirebaseAdMob.instance.initialize(appId: getAdmobAppId());
 
     return BlocProvider(
         create: (_) => GameBloc(level: 20),

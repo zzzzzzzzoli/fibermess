@@ -38,6 +38,9 @@ secrets.xml
 google-services.json
 secrets.dart
 android/key.properties
+ios/admobAppId
+ios/Runner/GoogleService-Info.plist
+
 
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages

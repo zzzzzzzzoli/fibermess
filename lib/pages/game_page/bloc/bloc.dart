@@ -49,7 +49,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
 
   InterstitialAd createInterstitialAd() {
     return InterstitialAd(
-      adUnitId: levelUpAdUnitId,
+      adUnitId: getLevelUpAdUnitId(),
       targetingInfo: targetingInfo,
       listener: (MobileAdEvent event) {
         print("InterstitialAd event $event");
