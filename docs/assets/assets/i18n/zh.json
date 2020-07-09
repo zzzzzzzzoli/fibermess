@@ -1,0 +1,28 @@
+{
+  "appName" : "光纤杂乱",
+  "button" : {
+    "label" : {
+      "resumeGame" : "继续游戏",
+      "newGame" : "新游戏",
+      "customGame" : "自定义游戏",
+      "play" : "开始",
+      "menu" : "菜单",
+      "shuffle" : "洗牌"
+    }
+  },
+  "text" : {
+    "width" : "宽度",
+    "sources" : "光源牌数量",
+    "links" : "链接数量",
+    "dummies" : "假牌数量",
+    "wrap" : "周接",
+    "enabled" : "开",
+    "disabled" : "关",
+    "level" : {
+      "count-0": "{count}级",
+      "count-1": "{count}级",
+      "count-2": "{count}级"
+    },
+    "paused" : "已暂停"
+  }
+}
