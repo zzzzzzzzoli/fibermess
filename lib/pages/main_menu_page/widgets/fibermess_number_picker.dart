@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-/// Created by Marcin Szałek
+/// Originally created by Marcin Szałek, modified for fibermess
 
 class NumberPicker extends StatelessWidget {
   ///height of every list element for normal number picker

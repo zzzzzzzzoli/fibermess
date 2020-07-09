@@ -15,6 +15,7 @@ import 'package:flutter_i18n/loaders/decoders/json_decode_strategy.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 Future main() async {
+
   FlutterError.onError = Crashlytics.instance.recordFlutterError;
 
   final FlutterI18nDelegate flutterI18nDelegate = FlutterI18nDelegate(
