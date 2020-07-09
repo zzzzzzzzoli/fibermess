@@ -7,10 +7,14 @@ import 'package:fibermess/pages/game_page/bloc/events.dart';
 import 'package:fibermess/pages/game_page/bloc/states.dart';
 import 'package:fibermess/pages/game_page/model/cell.dart';
 import 'package:fibermess/pages/game_page/model/levels.dart';
+import 'package:fibermess/secrets.dart';
+import 'package:firebase_admob/firebase_admob.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class GameBloc extends Bloc<GameEvent, GameState> {
+
+  InterstitialAd _interstitialAd;
   int pausedSeconds = 0;
   int maxLevel = 1;
 
@@ -31,8 +35,32 @@ class GameBloc extends Bloc<GameEvent, GameState> {
 
   bool get isComplete => lightsCount == lightsOnCount;
 
+  static const MobileAdTargetingInfo targetingInfo = MobileAdTargetingInfo(
+    keywords: <String>['game', 'maze', 'logic', 'netwalk', 'colourshift', 'fibermess', 'single player'],
+    testDevices: <String>['DAC6078EDDA37CBED75275C8CB871041'],
+  );
+
   GameBloc({this.level = 1}) {
     getSavedMazeIfAny();
+    _interstitialAd = createInterstitialAd()..load();
+  }
+
+  InterstitialAd createInterstitialAd() {
+    return InterstitialAd(
+      adUnitId: levelUpAdUnitId,
+      targetingInfo: targetingInfo,
+      listener: (MobileAdEvent event) {
+        print("InterstitialAd event $event");
+        if (event == MobileAdEvent.clicked || event == MobileAdEvent.closed) {
+          add(NewMazeEvent(level+1));
+          _interstitialAd?.dispose();
+          _interstitialAd = createInterstitialAd()..load();
+        } else if (event == MobileAdEvent.failedToLoad) {
+          Future.delayed(Duration(seconds: 5),
+          () => _interstitialAd = createInterstitialAd()..load());
+        }
+      },
+    );
   }
 
   @override
@@ -43,6 +71,17 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   @override
   Stream<GameState> mapEventToState(GameEvent event) async* {
     switch (event.runtimeType) {
+      case ShowInterstitialAdEvent:
+        bool isLoaded = false;
+        try {
+          isLoaded = await _interstitialAd.isLoaded();
+        } catch (e) {
+          _interstitialAd = createInterstitialAd()..load();
+          print(e);
+        }
+        if (isLoaded) _interstitialAd.show();
+        else add(NewMazeEvent(level+1));
+        break;
       case SelectLevelEvent:
         int lvl = (event as SelectLevelEvent).selectedLevel;
         yield LevelSelectedState(levels[lvl], lvl);

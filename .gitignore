@@ -33,8 +33,10 @@
 # Web related
 lib/generated_plugin_registrant.dart
 
-# Google APIs related
+# API keys
+secrets.xml
 google-services.json
+secrets.dart
 
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages

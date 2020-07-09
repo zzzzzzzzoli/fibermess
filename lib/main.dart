@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:fibermess/pages/game_page/bloc/bloc.dart';
 import 'package:fibermess/pages/game_page/widgets/game_widget.dart';
 import 'package:fibermess/pages/main_menu_page/main_menu_page.dart';
+import 'package:fibermess/secrets.dart';
+import 'package:firebase_admob/firebase_admob.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +15,6 @@ import 'package:flutter_i18n/loaders/decoders/json_decode_strategy.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 Future main() async {
-  Crashlytics.instance.enableInDevMode = true;
   FlutterError.onError = Crashlytics.instance.recordFlutterError;
 
   final FlutterI18nDelegate flutterI18nDelegate = FlutterI18nDelegate(
@@ -41,6 +42,8 @@ class Fibermess extends StatelessWidget {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
+
+    FirebaseAdMob.instance.initialize(appId: admobAppId);
 
     return BlocProvider(
         create: (_) => GameBloc(level: 20),

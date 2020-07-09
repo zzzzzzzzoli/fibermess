@@ -37,7 +37,8 @@ class GameWonPopupWidget extends StatelessWidget {
           FibermessButton(
               text: 'Next level',
               onPressed: () {
-                BlocProvider.of<GameBloc>(context).add(NewMazeEvent(nextLevel));
+                BlocProvider.of<GameBloc>(context).add(ShowInterstitialAdEvent());
+//                BlocProvider.of<GameBloc>(context).add(NewMazeEvent(nextLevel));
                 Navigator.popUntil(context, ModalRoute.withName('/game'));
               }
           )

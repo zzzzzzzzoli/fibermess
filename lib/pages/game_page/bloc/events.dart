@@ -38,3 +38,5 @@ class SelectLevelEvent extends GameEvent {
   SelectLevelEvent(this.selectedLevel);
 
 }
+
+class ShowInterstitialAdEvent extends GameEvent {}

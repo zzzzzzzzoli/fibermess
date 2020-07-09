@@ -1,4 +1,4 @@
-package zzzzzzzzoli.com.fibermess
+package com.zzzzzzzzoli.fibermess
 
 import androidx.annotation.NonNull;
 import io.flutter.embedding.android.FlutterActivity
