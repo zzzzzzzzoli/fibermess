@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fibermess/pages/game_page/bloc/bloc.dart';
 import 'package:fibermess/pages/game_page/widgets/game_widget.dart';
 import 'package:fibermess/pages/main_menu_page/main_menu_page.dart';
+import 'package:fibermess/pages/tutorial_page/widgets/tutorial_widget.dart';
 import 'package:fibermess/secrets.dart';
 import 'package:firebase_admob/firebase_admob.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -56,7 +57,8 @@ class Fibermess extends StatelessWidget {
                 initialRoute: '/',
                 routes: {
                   '/': (context) => MainMenuPage(),
-                  '/game': (context) => GameWidget()
+                  '/game': (context) => GameWidget(),
+                  '/tutorial': (context) => TutorialWidget(),
                 },
               localizationsDelegates: [
                 flutterI18nDelegate,

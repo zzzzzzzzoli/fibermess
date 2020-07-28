@@ -52,15 +52,23 @@ class MainMenuPage extends StatelessWidget {
         ),
       ]);
     }
-    columnChildren.add(FibermessButton(
-        text: FlutterI18n.translate(context, "button.label.newGame"),
-        onPressed: () {
-          var maxLevel = BlocProvider.of<GameBloc>(context).maxLevel;
-          BlocProvider.of<GameBloc>(context).add(SelectLevelEvent(maxLevel));
-          Navigator.of(context)
-              .push(FibermessDialog(child: NewGamePopupContentWidget()));
-        }));
-
+    columnChildren.addAll([
+      FibermessButton(
+          text: FlutterI18n.translate(context, "button.label.newGame"),
+          onPressed: () {
+            var maxLevel = BlocProvider.of<GameBloc>(context).maxLevel;
+            BlocProvider.of<GameBloc>(context).add(SelectLevelEvent(maxLevel));
+            Navigator.of(context)
+                .push(FibermessDialog(child: NewGamePopupContentWidget()));
+          }),
+      SizedBox(
+        height: 20,
+      ),
+      FibermessButton(
+        text: FlutterI18n.translate(context, "button.label.tutorial"),
+        onPressed: () => Navigator.pushNamed(context, '/tutorial'),
+      )
+    ]);
     return IntrinsicWidth(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -70,4 +78,3 @@ class MainMenuPage extends StatelessWidget {
     );
   }
 }
-

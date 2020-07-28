@@ -4,6 +4,8 @@ import 'package:collection/collection.dart';
 import 'package:fibermess/pages/game_page/bloc/bloc.dart';
 import 'package:fibermess/pages/game_page/bloc/states.dart';
 import 'package:fibermess/pages/game_page/model/cell.dart';
+import 'package:fibermess/pages/tutorial_page/bloc/bloc.dart';
+import 'package:fibermess/pages/tutorial_page/bloc/states.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,11 +14,28 @@ class CellWidget extends StatelessWidget {
 
   final double size;
   final int cellIndex;
+  final bool isTutorial;
 
-  const CellWidget({Key key, @required this.size, @required this.cellIndex}) : super(key: key);
+  const CellWidget({Key key, @required this.size, @required this.cellIndex, this.isTutorial = false}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    if (isTutorial) {
+      return buildTutorialCellWidget();
+    } else {
+      return buildGameCellWidget();
+    }
+  }
+
+  BlocBuilder<TutorialBloc, TutorialState> buildTutorialCellWidget() {
+    return BlocBuilder<TutorialBloc, TutorialState>(
+      builder: (BuildContext context, TutorialState state) {
+        return buildWidget(state.maze[cellIndex]);
+      },
+    );
+  }
+
+  BlocBuilder<GameBloc, GameState> buildGameCellWidget() {
     return BlocBuilder<GameBloc, GameState>(
       condition: (GameState oldState, GameState newState) {
         if (newState is CellsNeedRepaintingState) return newState.indices.contains(cellIndex);

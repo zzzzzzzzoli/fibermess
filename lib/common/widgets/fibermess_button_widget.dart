@@ -18,25 +18,21 @@ class FibermessButton extends StatelessWidget {
         constraints: BoxConstraints(
           maxHeight: maxHeight,
         ),
-        child: OutlineButton(
-            textColor: Color(0xff01ff00),
-            borderSide: BorderSide(color: Color(0xff01ff00)),
-            padding: EdgeInsets.all(padding),
-            onPressed: onPressed,
-            child: Text(text,
-                style: TextStyle(fontFamily: 'Audiowide', fontSize: fontSize)),
-        ),
+        child: buildOutlineButton(),
       );
     else
-      return OutlineButton(
-      textColor: Color(0xff01ff00),
-      borderSide: BorderSide(color: Color(0xff01ff00)),
-      padding: EdgeInsets.all(padding),
-      onPressed: onPressed,
-      child: Text(text,
-          style: TextStyle(fontFamily: 'Audiowide', fontSize: fontSize)),
+      return buildOutlineButton();
+  }
 
-    );
+  OutlineButton buildOutlineButton() {
+    return OutlineButton(
+          textColor: Color(0xff01ff00),
+          borderSide: BorderSide(color: Color(0xff01ff00)),
+          padding: EdgeInsets.all(padding),
+          onPressed: onPressed,
+          child: Text(text,
+              style: TextStyle(fontFamily: 'Audiowide', fontSize: fontSize)),
+      );
   }
 
 }

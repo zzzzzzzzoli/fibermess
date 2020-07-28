@@ -1,5 +1,3 @@
-import 'package:fibermess/pages/game_page/model/levels.dart';
-
 abstract class GameEvent {}
 
 class NewMazeEvent extends GameEvent {
