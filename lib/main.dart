@@ -48,7 +48,7 @@ class Fibermess extends StatelessWidget {
     FirebaseAdMob.instance.initialize(appId: getAdmobAppId());
 
     return BlocProvider(
-        create: (_) => GameBloc(level: 20),
+        create: (_) => GameBloc(),
         child: Container(
             color: Colors.black,
             child: MaterialApp(

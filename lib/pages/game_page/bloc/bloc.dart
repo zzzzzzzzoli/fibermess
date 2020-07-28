@@ -684,7 +684,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
         add(MazeRestoredEvent());
       }
     }
-    if (prefs.containsKey("maxLevel")) {
+    if (prefs.containsKey("maxLevel") && maxLevel < prefs.get("maxLevel")) {
       maxLevel = prefs.get("maxLevel");
     }
   }
