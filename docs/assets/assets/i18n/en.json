@@ -7,7 +7,10 @@
       "customGame" : "Custom Game",
       "play" : "Play",
       "menu" : "Menu",
-      "shuffle" : "Shuffle"
+      "shuffle" : "Shuffle",
+      "tutorial" : "Tutorial",
+      "next" : "Next",
+      "finish" : "Finish"
     }
   },
   "text" : {
@@ -23,6 +26,11 @@
       "count-1": "Level {count}",
       "count-2": "Level {count}"
     },
-    "paused" : "Paused"
+    "paused" : "Paused",
+    "tutorial" : {
+      "1" : "Connect the rectangular light sources to the round lights of the same color!\n  Tap on the source to turn it.",
+      "2" : "Sometimes you have to use multiple sources for a single light.\nMix all colors to get white!",
+      "3" : "When wrap is enabled the opposite sides are connected."
+    }
   }
 }

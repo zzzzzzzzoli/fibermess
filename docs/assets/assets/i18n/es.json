@@ -7,7 +7,9 @@
       "customGame" : "Juego Pesonalisado",
       "play" : "Jugar",
       "menu" : "Menu",
-      "shuffle" : "Barajar"
+      "shuffle" : "Mezclar",
+      "next" : "Siguiente",
+      "finish" : "Terminar"
     }
   },
   "text" : {
@@ -23,6 +25,11 @@
       "count-1": "Nivel {count}",
       "count-2": "Nivel {count}"
     },
-    "paused" : "Pausado"
+    "paused" : "Pausa",
+    "tutorial" : {
+      "1" : "¡Conectá las fuentes de luz rectanguleres con las bombillas de luz del mismo color!\nTocá la fuente para girarla.",
+      "2" : "A veces tenés que usar más de una fuente para una sola bombilla.\nMezclá todos los colores para obtener luz blanca!",
+      "3" : "Cuando wrap está habilitado los lados opuestos se conectan."
+    }
   }
 }
