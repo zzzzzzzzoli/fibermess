@@ -12,8 +12,8 @@ class FibermessLogoWidget extends StatelessWidget {
         Positioned.fill(child:
         BackdropFilter(
             filter: ImageFilter.blur(
-              sigmaX: 8,
-              sigmaY: 8,
+              sigmaX: 20,
+              sigmaY: 20,
             ),
             child: Container(color: Colors.black.withOpacity(0),)
         ),
